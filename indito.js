@@ -24,6 +24,9 @@ db.connect((err) => {
   }
 });
 
+// 🔹 Body parser a POST formokhoz
+app.use(express.urlencoded({ extended: true }));
+
 // 🔹 statikus fájlok /app029 alól
 app.use('/app029', express.static(path.join(__dirname, 'public')));
 
@@ -37,12 +40,32 @@ app.get('/app029/adatbazis', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'adatbazis.html'));
 });
 
-// 🔹 Kapcsolat menü
+// 🔹 Kapcsolat menü (GET)
 app.get('/app029/kapcsolat', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'kapcsolat.html'));
 });
 
-// 🔹 Üzenetek menü
+// 🔹 Kapcsolat menü (POST) – üzenet mentése a messages táblába
+app.post('/app029/kapcsolat', (req, res) => {
+  const { name, email, subject, message } = req.body;
+
+  const sql = `
+    INSERT INTO messages (name, email, subject, message, created_at, updated_at)
+    VALUES (?, ?, ?, ?, NOW(), NOW())
+  `;
+
+  db.query(sql, [name, email, subject || null, message], (err, result) => {
+    if (err) {
+      console.error('❌ Hiba az üzenet mentésekor:', err);
+      return res.status(500).send('Hiba történt az üzenet mentésekor.');
+    }
+
+    // siker: vissza a kapcsolat oldalra, egy jelzővel
+    res.redirect('/app029/kapcsolat?siker=1');
+  });
+});
+
+// 🔹 Üzenetek menü (későbbiekhez)
 app.get('/app029/uzenetek', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'uzenetek.html'));
 });
@@ -52,7 +75,7 @@ app.get('/app029/crud', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'crud.html'));
 });
 
-// 🔹 API – 3 tábla JOIN, 1 listában visszaadva
+// 🔹 API – 3 tábla JOIN, 1 táblázathoz
 app.get('/app029/api/adatbazis', (req, res) => {
   const sql = `
     SELECT
@@ -81,7 +104,6 @@ app.get('/app029/api/adatbazis', (req, res) => {
     res.json(rows);
   });
 });
-
 
 // 🔹 Szerver indítása
 app.listen(PORT, () => {
