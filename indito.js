@@ -24,45 +24,29 @@ db.connect((err) => {
   }
 });
 
-// 🔹 Body parser a POST formokhoz
+// 🔹 Body parser – JSON és urlencoded
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // 🔹 statikus fájlok /app029 alól
 app.use('/app029', express.static(path.join(__dirname, 'public')));
 
-// ------------------------
-//       OLDALAK
-// ------------------------
-
-// Főoldal
+// 🔹 Főoldal
 app.get(['/app029', '/app029/'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Adatbázis menü
+// 🔹 Adatbázis menü
 app.get('/app029/adatbazis', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'adatbazis.html'));
 });
 
-// Kapcsolat menü
+// 🔹 Kapcsolat menü (GET)
 app.get('/app029/kapcsolat', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'kapcsolat.html'));
 });
 
-// Üzenetek menü
-app.get('/app029/uzenetek', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'uzenetek.html'));
-});
-
-// CRUD menü
-app.get('/app029/crud', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'crud.html'));
-});
-
-// ------------------------
-//   KAPCSOLAT – ÜZENET MENTÉS
-// ------------------------
-
+// 🔹 Kapcsolat menü (POST) – üzenet mentése a messages táblába
 app.post('/app029/kapcsolat', (req, res) => {
   const { name, email, subject, message } = req.body;
 
@@ -77,14 +61,22 @@ app.post('/app029/kapcsolat', (req, res) => {
       return res.status(500).send('Hiba történt az üzenet mentésekor.');
     }
 
+    // siker: vissza a kapcsolat oldalra egy jelzővel
     res.redirect('/app029/kapcsolat?siker=1');
   });
 });
 
-// ------------------------
-//   API – F1 ADATBÁZIS MENÜ
-// ------------------------
+// 🔹 Üzenetek menü
+app.get('/app029/uzenetek', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'uzenetek.html'));
+});
 
+// 🔹 CRUD menü
+app.get('/app029/crud', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'crud.html'));
+});
+
+// 🔹 API – 3 tábla JOIN, 1 listában visszaadva (Adatbázis menü)
 app.get('/app029/api/adatbazis', (req, res) => {
   const sql = `
     SELECT
@@ -114,15 +106,12 @@ app.get('/app029/api/adatbazis', (req, res) => {
   });
 });
 
-// ------------------------
-//   API – ÜZENETEK LISTÁJA
-// ------------------------
-
+// 🔹 API – ÜZENETEK LISTÁJA (Üzenetek menü)
 app.get('/app029/api/messages', (req, res) => {
   const sql = `
     SELECT id, name, email, subject, message, created_at
     FROM messages
-    ORDER BY created_at DESC, id DESC
+    ORDER BY created_at DESC, id DESC;
   `;
 
   db.query(sql, (err, rows) => {
@@ -134,10 +123,126 @@ app.get('/app029/api/messages', (req, res) => {
   });
 });
 
-// ------------------------
-// Szerver indítása
-// ------------------------
 
+// 🔹 PILÓTÁK CRUD API
+
+// Lista (READ)
+app.get('/app029/api/pilots', (req, res) => {
+  const sql = `
+    SELECT id, legacy_id, name, gender, birth_date, nationality
+    FROM pilots
+    ORDER BY id;
+  `;
+
+  db.query(sql, (err, rows) => {
+    if (err) {
+      console.error('Hiba a pilóták lekérdezésénél:', err);
+      return res.status(500).json({ error: 'Hiba az adatok lekérdezésekor.' });
+    }
+    res.json(rows);
+  });
+});
+
+// Új pilóta felvitele (CREATE)
+app.post('/app029/api/pilots', (req, res) => {
+  let { legacy_id, name, gender, birth_date, nationality } = req.body;
+
+  // Üres mezőkből legyen NULL
+  legacy_id = legacy_id === '' || legacy_id === null ? null : legacy_id;
+  birth_date = birth_date === '' || birth_date === null ? null : birth_date;
+
+  const sql = `
+    INSERT INTO pilots (legacy_id, name, gender, birth_date, nationality)
+    VALUES (?, ?, ?, ?, ?);
+  `;
+
+  db.query(
+    sql,
+    [legacy_id, name, gender, birth_date, nationality],
+    (err, result) => {
+      if (err) {
+        console.error('Hiba az új pilóta beszúrásakor:', err);
+        return res.status(500).json({ error: 'Hiba a beszúrás során.' });
+      }
+
+      const newId = result.insertId;
+      db.query(
+        'SELECT id, legacy_id, name, gender, birth_date, nationality FROM pilots WHERE id = ?',
+        [newId],
+        (err2, rows) => {
+          if (err2) {
+            console.error('Hiba az új pilóta visszaolvasásakor:', err2);
+            return res.status(500).json({ error: 'Hiba a beszúrás után.' });
+          }
+          res.status(201).json(rows[0]);
+        }
+      );
+    }
+  );
+});
+
+// Pilóta módosítása (UPDATE)
+app.put('/app029/api/pilots/:id', (req, res) => {
+  const id = req.params.id;
+  let { legacy_id, name, gender, birth_date, nationality } = req.body;
+
+  legacy_id = legacy_id === '' || legacy_id === null ? null : legacy_id;
+  birth_date = birth_date === '' || birth_date === null ? null : birth_date;
+
+  const sql = `
+    UPDATE pilots
+    SET legacy_id = ?, name = ?, gender = ?, birth_date = ?, nationality = ?
+    WHERE id = ?;
+  `;
+
+  db.query(
+    sql,
+    [legacy_id, name, gender, birth_date, nationality, id],
+    (err, result) => {
+      if (err) {
+        console.error('Hiba a pilóta módosításakor:', err);
+        return res.status(500).json({ error: 'Hiba a módosítás során.' });
+      }
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Nincs ilyen azonosítójú pilóta.' });
+      }
+
+      db.query(
+        'SELECT id, legacy_id, name, gender, birth_date, nationality FROM pilots WHERE id = ?',
+        [id],
+        (err2, rows) => {
+          if (err2) {
+            console.error('Hiba a frissített pilóta visszaolvasásakor:', err2);
+            return res.status(500).json({ error: 'Hiba a módosítás után.' });
+          }
+          res.json(rows[0]);
+        }
+      );
+    }
+  );
+});
+
+// Pilóta törlése (DELETE)
+app.delete('/app029/api/pilots/:id', (req, res) => {
+  const id = req.params.id;
+
+  db.query('DELETE FROM pilots WHERE id = ?', [id], (err, result) => {
+    if (err) {
+      console.error('Hiba a pilóta törlésekor:', err);
+      return res.status(500).json({ error: 'Hiba a törlés során.' });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Nincs ilyen azonosítójú pilóta.' });
+    }
+
+    res.json({ success: true });
+  });
+});
+
+
+// 🔹 Szerver indítása
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
