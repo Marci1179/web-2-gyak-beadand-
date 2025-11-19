@@ -30,22 +30,39 @@ app.use(express.urlencoded({ extended: true }));
 // 🔹 statikus fájlok /app029 alól
 app.use('/app029', express.static(path.join(__dirname, 'public')));
 
-// 🔹 Főoldal
+// ------------------------
+//       OLDALAK
+// ------------------------
+
+// Főoldal
 app.get(['/app029', '/app029/'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// 🔹 Adatbázis menü
+// Adatbázis menü
 app.get('/app029/adatbazis', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'adatbazis.html'));
 });
 
-// 🔹 Kapcsolat menü (GET)
+// Kapcsolat menü
 app.get('/app029/kapcsolat', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'kapcsolat.html'));
 });
 
-// 🔹 Kapcsolat menü (POST) – üzenet mentése a messages táblába
+// Üzenetek menü
+app.get('/app029/uzenetek', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'uzenetek.html'));
+});
+
+// CRUD menü
+app.get('/app029/crud', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'crud.html'));
+});
+
+// ------------------------
+//   KAPCSOLAT – ÜZENET MENTÉS
+// ------------------------
+
 app.post('/app029/kapcsolat', (req, res) => {
   const { name, email, subject, message } = req.body;
 
@@ -54,28 +71,20 @@ app.post('/app029/kapcsolat', (req, res) => {
     VALUES (?, ?, ?, ?, NOW(), NOW())
   `;
 
-  db.query(sql, [name, email, subject || null, message], (err, result) => {
+  db.query(sql, [name, email, subject || null, message], (err) => {
     if (err) {
       console.error('❌ Hiba az üzenet mentésekor:', err);
       return res.status(500).send('Hiba történt az üzenet mentésekor.');
     }
 
-    // siker: vissza a kapcsolat oldalra, egy jelzővel
     res.redirect('/app029/kapcsolat?siker=1');
   });
 });
 
-// 🔹 Üzenetek menü (későbbiekhez)
-app.get('/app029/uzenetek', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'uzenetek.html'));
-});
+// ------------------------
+//   API – F1 ADATBÁZIS MENÜ
+// ------------------------
 
-// 🔹 CRUD menü
-app.get('/app029/crud', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'crud.html'));
-});
-
-// 🔹 API – 3 tábla JOIN, 1 táblázathoz
 app.get('/app029/api/adatbazis', (req, res) => {
   const sql = `
     SELECT
@@ -105,7 +114,30 @@ app.get('/app029/api/adatbazis', (req, res) => {
   });
 });
 
-// 🔹 Szerver indítása
+// ------------------------
+//   API – ÜZENETEK LISTÁJA
+// ------------------------
+
+app.get('/app029/api/messages', (req, res) => {
+  const sql = `
+    SELECT id, name, email, subject, message, created_at
+    FROM messages
+    ORDER BY created_at DESC, id DESC
+  `;
+
+  db.query(sql, (err, rows) => {
+    if (err) {
+      console.error('❌ Hiba az üzenetek lekérdezésekor:', err);
+      return res.status(500).json({ error: 'Hiba az üzenetek lekérdezésekor.' });
+    }
+    res.json(rows);
+  });
+});
+
+// ------------------------
+// Szerver indítása
+// ------------------------
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
